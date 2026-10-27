@@ -91,6 +91,7 @@ public static class ConfigManager
             Game.V82Transformations = transformations;
             saveGame = true;
         }
+        if (Modding.ModCatalog.InitializeActiveMods(Game)) saveGame = true;
         var soundtrack = SoundtrackSettings.Normalize(Game.Soundtrack);
         if (soundtrack != Game.Soundtrack)
         {
@@ -152,7 +153,7 @@ public static class ConfigManager
     {
         foreach (var p in panels)
         {
-            if (View.Panels.TryGetValue(p.Name, out var state))
+            if (p.RestoresOpenState && View.Panels.TryGetValue(p.Name, out var state))
                 p.IsOpen = state.Open;
         }
     }
@@ -160,7 +161,12 @@ public static class ConfigManager
     public static void SaveView(IReadOnlyList<IPanel> panels)
     {
         foreach (var p in panels)
-            View.Panels[p.Name] = new PanelState { Open = p.IsOpen };
+        {
+            if (p.RestoresOpenState)
+                View.Panels[p.Name] = new PanelState { Open = p.IsOpen };
+            else
+                View.Panels.Remove(p.Name);
+        }
 
         // The in-game menus save view settings too, and they run in contexts
         // with no ImGui context at all -- headless, and any launch where the

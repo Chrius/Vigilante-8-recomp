@@ -3861,7 +3861,11 @@ public static class V82VehicleRegistry
             Environment.GetEnvironmentVariable("RECOMPONE_V82_VEHICLE_PACKAGE");
         if (!string.IsNullOrWhiteSpace(package))
             explicitRoots.Add(Path.GetFullPath(package));
+        // A saved package path inside a mod switched off in ActiveMods must not
+        // bring that mod back.
         if (!string.IsNullOrWhiteSpace(
+                ConfigManager.Game.V82VehiclePackagePath) &&
+            !Modding.ModCatalog.IsInsideDisabledMod(
                 ConfigManager.Game.V82VehiclePackagePath))
             explicitRoots.Add(Path.GetFullPath(
                 ConfigManager.Game.V82VehiclePackagePath));
@@ -3888,11 +3892,8 @@ public static class V82VehicleRegistry
         var candidates = new List<string>();
         foreach (string root in roots.Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            string mods = Path.Combine(root, "mods");
-            if (Directory.Exists(mods))
-                candidates.AddRange(
-                    Directory.EnumerateDirectories(mods)
-                        .OrderBy(path => path, StringComparer.OrdinalIgnoreCase));
+            candidates.AddRange(
+                Modding.ModCatalog.EnabledDirectories(Path.Combine(root, "mods")));
         }
         candidates.AddRange(roots);
 

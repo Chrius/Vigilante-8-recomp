@@ -456,18 +456,16 @@ internal sealed class PresentationRenderer : IDisposable
             Environment.GetEnvironmentVariable("RECOMPONE_LOADING_CARD_DIR");
         if (!string.IsNullOrWhiteSpace(overrideDirectory))
             directories.Add(Path.GetFullPath(overrideDirectory));
-        else
+        else if (Modding.ModCatalog.IsEnabled(Path.Combine(
+                     Runtime.ModsDirectory, "enhanced_textures_2x")))
             directories.Add(Path.Combine(
                 Runtime.ModsDirectory,
                 "enhanced_textures_2x",
                 "loading_cards"));
 
-        if (Directory.Exists(Runtime.ModsDirectory))
-        {
-            foreach (string modDirectory in Directory.EnumerateDirectories(
-                         Runtime.ModsDirectory))
-                directories.Add(Path.Combine(modDirectory, "loading_cards"));
-        }
+        foreach (string modDirectory in
+                 Modding.ModCatalog.EnabledDirectories(Runtime.ModsDirectory))
+            directories.Add(Path.Combine(modDirectory, "loading_cards"));
 
         foreach (string directory in directories)
             if (Directory.Exists(directory))

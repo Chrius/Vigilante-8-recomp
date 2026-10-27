@@ -250,5 +250,9 @@ public class GameConfig
     public GamepadBindings Pad2 { get; set; } = new();
     public GamepadBindings Pad3 { get; set; } = InputProfiles.CreatePad(InputProfiles.Modern);
     public GamepadBindings Pad4 { get; set; } = InputProfiles.CreatePad(InputProfiles.Modern);
+    // Mod folder (or script archive) names under mods\ that load at startup;
+    // see Modding.ModCatalog. ModsVersion 0 means the list predates being
+    // honoured and is filled from the installed mods on load.
     public List<string> ActiveMods { get; set; } = [];
+    public int ModsVersion { get; set; }
 }

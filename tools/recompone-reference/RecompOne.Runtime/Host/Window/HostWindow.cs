@@ -138,6 +138,7 @@ internal static class HostWindow
     // rest of that fullscreen stretch only, leaving the saved windowed
     // HideTopBar choice alone.
     static bool _topBarInFullscreen;
+    static volatile bool _quitRequested;
     static DiscPickerPopup? _discPicker;
 
     public static void Initialize(string title)
@@ -284,7 +285,7 @@ internal static class HostWindow
         catch (Exception e) {
             Console.WriteLine(e.Message);
         }
-        if (_window.IsClosing) { Runtime.Shutdown(); Environment.Exit(0); }
+        if (_window.IsClosing || _quitRequested) Quit();
         InputManager.Poll();
         if (InputManager.ConsumeTopBarToggle())
         {
@@ -348,8 +349,23 @@ internal static class HostWindow
     {
         if (_headless || _window == null) return;
         try { _window.DoEvents(); } catch { }
-        if (_window.IsClosing) { Runtime.Shutdown(); Environment.Exit(0); }
+        if (_window.IsClosing || _quitRequested) Quit();
         _window.DoRender();
+    }
+
+    /// <summary>
+    /// Quits at the start of the next frame. UI handlers run inside
+    /// DoRender, where tearing down the window and GL context is unsafe.
+    /// </summary>
+    public static void RequestQuit() => _quitRequested = true;
+
+    static void Quit()
+    {
+        // The close button saves through the Closing event; a requested quit
+        // has no such event, so save here. OnClosing runs only once.
+        OnClosing();
+        Runtime.Shutdown();
+        Environment.Exit(0);
     }
 
     public static void Shutdown()

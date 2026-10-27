@@ -60,8 +60,7 @@ internal static class VramImageReplacements
         var manifests = new List<string>();
         string rootManifest = Path.Combine(mods, "manifest.json");
         if (File.Exists(rootManifest)) manifests.Add(rootManifest);
-        manifests.AddRange(Directory.EnumerateDirectories(mods)
-            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+        manifests.AddRange(Modding.ModCatalog.EnabledDirectories(mods)
             .Select(path => Path.Combine(path, "manifest.json"))
             .Where(File.Exists));
 
