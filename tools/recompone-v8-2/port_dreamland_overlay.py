@@ -759,6 +759,24 @@ def main() -> int:
         ),
     )
     args = parser.parse_args()
+    # The converted overlay comes from the first game's recompile plus
+    # N64-derived arena files, none of which a Second Offense-only checkout
+    # has. The checked-in conversion is then the build input; the generated
+    # Entry still needs its registration or the Dreamland mod cannot load.
+    inputs = (args.source, args.arena_exp, args.arena_dll)
+    missing = [path for path in inputs if not path.resolve().exists()]
+    if missing and args.output.resolve().exists():
+        print(
+            f"kept checked-in {args.output.resolve()} "
+            f"(missing {', '.join(str(path.resolve()) for path in missing)})"
+        )
+        if args.entry.resolve().exists():
+            changed = patch_entry(args.entry.resolve())
+            print(
+                f"{'patched' if changed else 'validated'} "
+                f"Dreamland registration in {args.entry.resolve()}"
+            )
+        return 0
     primary_method = arena_registry.primary_export_name(
         args.arena_dll.resolve().read_bytes()
     )

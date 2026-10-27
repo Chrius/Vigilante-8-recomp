@@ -3,7 +3,15 @@ from pathlib import Path
 import re
 
 ROOT=Path(__file__).resolve().parents[2]
-source=(ROOT/'reference/generated/recompiled/main.cs').read_text(encoding='utf-8-sig')
+path=ROOT/'tools/recompone-reference/RecompOne.Runtime/sdk/V8VehicleMath.cs'
+first_game=ROOT/'reference/generated/recompiled/main.cs'
+# The source is the first game's recompile, which a Second Offense-only
+# checkout cannot produce. The checked-in port is the build input; only
+# regenerate it when that recompile is present.
+if not first_game.exists() and path.exists():
+    print(f'kept checked-in {path} (no {first_game})')
+    raise SystemExit(0)
+source=first_game.read_text(encoding='utf-8-sig')
 match=re.search(r'    public static void FUN_800439b8\(CpuContext c, IMemory m\)\n    \{.*?\n    \}',source,re.S)
 if match is None: raise RuntimeError('original V8 angular integrator missing')
 body=match.group().replace('FUN_800439b8','ApplyAngularVelocity')
@@ -16,6 +24,5 @@ namespace RecompOne.Runtime.Sdk;
 internal static class V8VehicleMath
 {
 '''+body+'\n}\n'
-path=ROOT/'tools/recompone-reference/RecompOne.Runtime/sdk/V8VehicleMath.cs'
 path.write_text(output,encoding='utf-8')
 print(path)
