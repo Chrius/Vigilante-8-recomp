@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- GlShaders is internal to the runtime; compile the shipping source
+         itself so this links exactly what the game links. -->
+    <Compile Include="../../../recompone-reference/RecompOne.Runtime/Gpu/Enhanced/GlShaders.cs" Link="GlShaders.cs" />
+    <PackageReference Include="Silk.NET" Version="2.22.0" />
+  </ItemGroup>
+</Project>

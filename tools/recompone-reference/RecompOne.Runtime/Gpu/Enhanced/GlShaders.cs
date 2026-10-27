@@ -58,26 +58,23 @@ internal static class GlShaders
 
     public const string PrimVs = """
         #version 330 core
+        // NVIDIA allows 16 vertex attributes ("invalid vertex attribute
+        // reference" past that). Adjacent GlVertex fields of one type share
+        // an attribute; main() unpacks them under their individual names.
         layout(location = 0) in vec2  inPos;
-        layout(location = 1) in uint  inColor;
-        layout(location = 2) in int   inClut;
-        layout(location = 3) in int   inTexpage;
-        layout(location = 4) in vec2  inUV;
-        layout(location = 5) in float inPerspectiveW;
-        layout(location = 6) in vec3  inBary;
-        layout(location = 7) in vec4  inUvBounds;
-        layout(location = 8) in float inDepth;
-        layout(location = 9) in float inRasterDepth;
-        layout(location = 10) in vec3 inViewPosition;
-        layout(location = 11) in vec3 inProjection;
-        layout(location = 12) in float inHasViewSpace;
-        layout(location = 13) in int inMaterial;
-        layout(location = 14) in vec4 inReplacementRect;
-        layout(location = 15) in vec3 inReplacementScale;
-        layout(location = 16) in vec3 inReplacementBias;
-        layout(location = 17) in int inBlendCode;
-        layout(location = 18) in uint inTerrainOffset;
-        layout(location = 19) in vec4 inTerrainMipRect;
+        layout(location = 1) in ivec3 inPacketWords;     // Color, Clut, Texpage
+        layout(location = 2) in vec4  inUvWDepth;        // U, V, PerspectiveW, Depth
+        layout(location = 3) in vec4  inRasterBary;      // RasterDepth, Bary
+        layout(location = 4) in vec4  inUvBounds;
+        layout(location = 5) in vec3  inViewPosition;
+        layout(location = 6) in vec3  inProjection;
+        layout(location = 7) in float inHasViewSpace;
+        layout(location = 8) in int   inMaterial;
+        layout(location = 9) in vec4  inReplacementRect;
+        layout(location = 10) in vec3 inReplacementScale;
+        layout(location = 11) in vec3 inReplacementBias;
+        layout(location = 12) in ivec2 inBlendTerrain;   // BlendCode, TerrainOffset
+        layout(location = 13) in vec4 inTerrainMipRect;
 
         out vec4 vColorPerspective;
         noperspective out vec4 vColorAffine;
@@ -86,21 +83,13 @@ internal static class GlShaders
         flat out ivec2 clutBase;
         flat out ivec2 pageBase;
         flat out int   texMode;
-        flat out int   vDither;
-        flat out int   vSmooth;
-        flat out int   vUiTexture;
-        flat out int   vParticle;
-        flat out int   vShadow;
+        // The one-bit primitive flags travel as the raw texpage word and are
+        // decoded in the fragment shader. As separate varyings they made 34
+        // outputs; NVIDIA exposes 31 slots, packs the excess into shared
+        // vec4s, and refuses to link when a slot mixes flat/noperspective/
+        // smooth members (C7001 "inconsistent use of semantic modifiers").
+        flat out int   vFlags;
         flat out int   vLongestEdge;
-        flat out int   vRadar;
-        flat out int   vHudPlate;
-        flat out int   vHealthPlate;
-        flat out int   vVehicle;
-        flat out int   vTerrainDebug;
-        flat out int   vN64RouteColor;
-        flat out int   vHudKeyedMagenta;
-        flat out int   vEffectContour;
-        flat out int   vModalPanel;
         flat out int   vMaterial;
         flat out int   vBlendCode;
         flat out int   vDreamcastTerrainColor;
@@ -119,6 +108,17 @@ internal static class GlShaders
         uniform vec2 uFbInv;
 
         void main() {
+            uint  inColor = uint(inPacketWords.x);
+            int   inClut = inPacketWords.y;
+            int   inTexpage = inPacketWords.z;
+            vec2  inUV = inUvWDepth.xy;
+            float inPerspectiveW = inUvWDepth.z;
+            float inDepth = inUvWDepth.w;
+            float inRasterDepth = inRasterBary.x;
+            vec3  inBary = inRasterBary.yzw;
+            int   inBlendCode = inBlendTerrain.x;
+            uint  inTerrainOffset = uint(inBlendTerrain.y);
+
             bool modernGeometry = inHasViewSpace > 0.5;
             float viewZ = inViewPosition.z;
             float safeViewZ =
@@ -162,20 +162,7 @@ internal static class GlShaders
                 float((inColor >> 16) & 0xFFu), 0.0) / 255.0;
             vColorPerspective = unpackedColor;
             vColorAffine = unpackedColor;
-            vDither = (inTexpage >> 10) & 1;
-            vSmooth = (inTexpage >> 11) & 1;
-            vUiTexture = (inTexpage >> 12) & 1;
-            vParticle = (inTexpage >> 13) & 1;
-            vShadow = (inTexpage >> 14) & 1;
-            vRadar = (inTexpage >> 16) & 1;
-            vHudPlate = (inTexpage >> 17) & 1;
-            vHealthPlate = (inTexpage >> 18) & 1;
-            vVehicle = (inTexpage >> 19) & 1;
-            vTerrainDebug = (inTexpage >> 20) & 1;
-            vN64RouteColor = (inTexpage >> 21) & 1;
-            vHudKeyedMagenta = (inTexpage >> 22) & 1;
-            vEffectContour = (inTexpage >> 23) & 1;
-            vModalPanel = (inTexpage >> 24) & 1;
+            vFlags = inTexpage;
             vMaterial = inMaterial;
             vBlendCode = inBlendCode;
             vec3 unpackedTerrainOffset = vec3(
@@ -218,21 +205,8 @@ internal static class GlShaders
         flat in ivec2 clutBase;
         flat in ivec2 pageBase;
         flat in int   texMode;
-        flat in int   vDither;
-        flat in int   vSmooth;
-        flat in int   vUiTexture;
-        flat in int   vParticle;
-        flat in int   vShadow;
+        flat in int   vFlags;
         flat in int   vLongestEdge;
-        flat in int   vRadar;
-        flat in int   vHudPlate;
-        flat in int   vHealthPlate;
-        flat in int   vVehicle;
-        flat in int   vTerrainDebug;
-        flat in int   vN64RouteColor;
-        flat in int   vHudKeyedMagenta;
-        flat in int   vEffectContour;
-        flat in int   vModalPanel;
         flat in int   vMaterial;
         flat in int   vBlendCode;
         flat in int   vDreamcastTerrainColor;
@@ -245,6 +219,22 @@ internal static class GlShaders
         flat in ivec4 vUvBounds;
         noperspective in vec3 vBary;
         in float vDepth;
+
+        // Texpage flag bits, packed by the vertex shader (see vFlags there).
+        #define vDither          ((vFlags >> 10) & 1)
+        #define vSmooth          ((vFlags >> 11) & 1)
+        #define vUiTexture       ((vFlags >> 12) & 1)
+        #define vParticle        ((vFlags >> 13) & 1)
+        #define vShadow          ((vFlags >> 14) & 1)
+        #define vRadar           ((vFlags >> 16) & 1)
+        #define vHudPlate        ((vFlags >> 17) & 1)
+        #define vHealthPlate     ((vFlags >> 18) & 1)
+        #define vVehicle         ((vFlags >> 19) & 1)
+        #define vTerrainDebug    ((vFlags >> 20) & 1)
+        #define vN64RouteColor   ((vFlags >> 21) & 1)
+        #define vHudKeyedMagenta ((vFlags >> 22) & 1)
+        #define vEffectContour   ((vFlags >> 23) & 1)
+        #define vModalPanel      ((vFlags >> 24) & 1)
 
         layout(location = 0, index = 0) out vec4 FragColor;
         layout(location = 0, index = 1) out vec4 BlendColor;
