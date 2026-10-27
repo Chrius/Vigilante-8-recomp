@@ -113,6 +113,16 @@ public static class ConfigManager
             View = view;
             _pendingImGuiIni = imguiIni;
         }
+        else
+        {
+            // A new install starts fullscreen with the texture pack shown.
+            // Setting them (not only defaulting them) writes both into the
+            // interface.ini created at the first save, so the player can see
+            // and edit them. The file is not written here: it also carries the
+            // ImGui layout, and an empty one would suppress the default docking.
+            View.Fullscreen = true;
+            View.HighResolutionTextures = true;
+        }
 
         // V8:2 has no render-scale choice in its in-game menu, because the
         // scale caps at 4x and that is 1280x960 -- below every output
