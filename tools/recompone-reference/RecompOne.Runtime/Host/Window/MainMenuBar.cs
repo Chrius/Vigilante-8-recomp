@@ -19,7 +19,8 @@ internal static class MainMenuBar
     {
         if (!ImGui.BeginMenu("Mods")) return;
 
-        if (ImGui.MenuItem("Mods..."))
+        // All mod management, including restart, lives in the Mods window.
+        if (ImGui.MenuItem("Manage Mods..."))
             if (PanelManager.Get<Modding.ModsPopup>() is { } popup) popup.IsOpen = true;
 
         ImGui.EndMenu();

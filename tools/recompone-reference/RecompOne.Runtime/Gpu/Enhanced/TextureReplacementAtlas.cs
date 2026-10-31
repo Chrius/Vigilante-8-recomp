@@ -167,7 +167,8 @@ internal sealed class TextureReplacementAtlas : IDisposable
             Runtime.ModsDirectory, "enhanced_textures_2x");
         string legacyDirectory = Path.Combine(looseRoot, "textures", "2x");
         string directory = overrideDirectory ??
-            (File.Exists(Path.Combine(modsDirectory, "manifest.json"))
+            (File.Exists(Path.Combine(modsDirectory, "manifest.json")) &&
+             Modding.ModCatalog.IsEnabled(modsDirectory)
                 ? modsDirectory
                 : legacyDirectory);
         directory = Path.GetFullPath(directory);

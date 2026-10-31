@@ -21,6 +21,8 @@ public static class ConsoleMirror
     {
         if (_installed) return;
         _installed = true;
+        // A restarted instance must not reopen the log before the old one exits.
+        Host.GameRestart.WaitForPredecessor();
         string executable = Environment.ProcessPath ?? "";
         string executableDirectory =
             Path.GetDirectoryName(executable) ?? AppContext.BaseDirectory;

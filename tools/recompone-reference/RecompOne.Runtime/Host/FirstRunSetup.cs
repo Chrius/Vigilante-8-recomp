@@ -1,5 +1,4 @@
 using System.Numerics;
-using System.Runtime.InteropServices;
 using System.Text;
 using ImGuiNET;
 using Silk.NET.Input;
@@ -31,6 +30,7 @@ public static class FirstRunSetup
         ImGuiController? ui = null;
         using var cancel = new CancellationTokenSource();
         Task? import = null;
+        Task<string?>? choosing = null;
         var gate = new object();
         var progress = new LooseImportProgress("welcome", 0, 1, "");
         string error = "", selected = initialSource ?? "";
@@ -77,6 +77,22 @@ public static class FirstRunSetup
             ui!.Update((float)Math.Max(dt, 0.001));
             gl!.Viewport(0, 0, (uint)window.FramebufferSize.X, (uint)window.FramebufferSize.Y);
             gl.ClearColor(0.07f, 0.07f, 0.08f, 1); gl.Clear(ClearBufferMask.ColorBufferBit);
+            if (choosing is { IsCompleted: true })
+            {
+                // Any failure here must reach the window, not escape the
+                // render callback: an exception from Render ends the process.
+                try
+                {
+                    string? file = choosing.GetAwaiter().GetResult();
+                    if (file != null) Start(file);
+                }
+                catch (Exception ex)
+                {
+                    lock (gate) error = ex.Message;
+                    Console.Error.WriteLine($"[Setup] file selection failed: {ex}");
+                }
+                choosing = null;
+            }
             LooseImportProgress p; string message; bool done;
             lock (gate) { p = progress; message = error; done = success; }
             bool busy = import != null && !import.IsCompleted && p.Phase != "error";
@@ -92,10 +108,16 @@ public static class FirstRunSetup
             if (selected.Length != 0) ImGui.TextWrapped("Selected: " + Path.GetFileName(selected));
             if (!busy && !done)
             {
-                if (ImGui.Button("Choose BIN / CUE...", new Vector2(250, 42)))
+                if (choosing != null)
+                    ImGui.TextWrapped("Waiting for file selection...");
+                else if (ImGui.Button("Choose BIN / CUE...", new Vector2(250, 42)))
                 {
-                    string? file = ChooseDisc();
-                    if (file != null) Start(file);
+                    // This thread keeps pumping messages while the dialog is
+                    // open, so the setup window can own it and stay modal.
+                    choosing = NativeFileDialog.OpenAsync(
+                        "Select Vigilante 8: 2nd Offense",
+                        "PlayStation disc (BIN/CUE)\0*.cue;*.bin\0\0",
+                        owner: NativeFileDialog.ActiveWindow());
                 }
                 if (message.Length != 0)
                 {
@@ -110,7 +132,8 @@ public static class FirstRunSetup
                 ImGui.TextWrapped(p.Item);
             }
             ImGui.Spacing();
-            if (!done && ImGui.Button(busy ? "Cancel installation" : "Exit", new Vector2(220, 36))) window.Close();
+            if (!done && choosing == null &&
+                ImGui.Button(busy ? "Cancel installation" : "Exit", new Vector2(220, 36))) window.Close();
             ImGui.End(); ui.Render();
             string phase = p.Phase is "files" or "music" ? p.Phase + "-" + (p.Current * 4 / Math.Max(1, p.Total)) : p.Phase;
             if (captures != null && frames > 1 && captured.Add(phase)) Capture(gl, window, captures, phase);
@@ -166,31 +189,5 @@ public static class FirstRunSetup
         using var file = File.Create(Path.Combine(directory, "setup-" + phase + ".ppm"));
         file.Write(Encoding.ASCII.GetBytes($"P6\n{width} {height}\n255\n"));
         for (int y = height - 1; y >= 0; y--) file.Write(pixels, y * width * 3, width * 3);
-    }
-
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    struct OpenFileName
-    {
-        public int Size; public nint Owner, Instance; public string Filter;
-        public nint CustomFilter; public int MaxCustomFilter, FilterIndex;
-        public StringBuilder File; public int MaxFile; public nint FileTitle;
-        public int MaxFileTitle; public string? InitialDir, Title; public int Flags;
-        public short FileOffset, FileExtension; public nint DefaultExtension, CustomData, Hook, TemplateName, Reserved;
-        public int Reserved2, FlagsEx;
-    }
-    [DllImport("comdlg32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    static extern bool GetOpenFileName(ref OpenFileName value);
-
-    static string? ChooseDisc()
-    {
-        var buffer = new StringBuilder(32768);
-        var dialog = new OpenFileName
-        {
-            Size = Marshal.SizeOf<OpenFileName>(), Filter = "PlayStation disc (BIN/CUE)\0*.cue;*.bin\0\0",
-            FilterIndex = 1, File = buffer, MaxFile = buffer.Capacity,
-            Title = "Select Vigilante 8: 2nd Offense", Flags = 0x1000 | 0x800 | 8
-        };
-        return GetOpenFileName(ref dialog) ? buffer.ToString() : null;
     }
 }

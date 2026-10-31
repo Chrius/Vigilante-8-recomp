@@ -449,8 +449,7 @@ public sealed class CueFs : IDisposable
         if (!Directory.Exists(mods)) return;
 
         int count = 0;
-        foreach (string mod in Directory.EnumerateDirectories(mods)
-                     .OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
+        foreach (string mod in Modding.ModCatalog.EnabledDirectories(mods))
         {
             string files = Path.Combine(mod, "files");
             if (!Directory.Exists(files)) continue;

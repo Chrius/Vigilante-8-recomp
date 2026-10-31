@@ -87,9 +87,8 @@ public static class ModLoader
     {
         var list = new List<Candidate>();
 
-        foreach (var dir in Directory.EnumerateDirectories(root))
+        foreach (var dir in ModCatalog.EnabledDirectories(root))
         {
-            if (Path.GetFileName(dir).StartsWith('.')) continue;
             var jsonPath = Path.Combine(dir, "mod.json");
             if (!File.Exists(jsonPath))
             {
@@ -111,6 +110,7 @@ public static class ModLoader
 
         foreach (var zipPath in Directory.EnumerateFiles(root, "*.zip"))
         {
+            if (!ModCatalog.IsEnabled(zipPath)) continue;
             try
             {
                 using var zip = ZipFile.OpenRead(zipPath);

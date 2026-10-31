@@ -50,7 +50,7 @@ public class ViewConfig
 
     public bool Fullscreen
     {
-        get => GetBool("Fullscreen");
+        get => GetBool("Fullscreen", true);
         set => SetBool("Fullscreen", value);
     }
 

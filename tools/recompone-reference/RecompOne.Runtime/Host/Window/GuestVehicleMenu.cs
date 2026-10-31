@@ -1,5 +1,4 @@
 using System.Numerics;
-using System.Runtime.InteropServices;
 using System.Text;
 using ImGuiNET;
 using RecompOne.Runtime.Config;
@@ -62,6 +61,7 @@ internal sealed class GuestVehiclePackagePanel : IPanel
     string _status = "";
     bool _statusIsError;
     bool _wasOpen;
+    Task<string?>? _browsing;
 
     public string Name => "Guest Vehicle Package";
     public bool IsOpen { get; set; }
@@ -96,6 +96,7 @@ internal sealed class GuestVehiclePackagePanel : IPanel
             return;
         }
         IsOpen = open;
+        CompleteBrowse();
 
         DrawHeading();
         ImGui.Spacing();
@@ -120,8 +121,10 @@ internal sealed class GuestVehiclePackagePanel : IPanel
             _pathBuffer,
             PathBufferSize);
         ImGui.SameLine();
+        ImGui.BeginDisabled(_browsing != null);
         if (ImGui.Button("Browse...", new Vector2(browseWidth, 0f)))
             Browse();
+        ImGui.EndDisabled();
 
         ImGui.TextDisabled(
             "Select VEHICLES.V8R, CUSTOM.EXP, or their containing folder.");
@@ -185,15 +188,27 @@ internal sealed class GuestVehiclePackagePanel : IPanel
         }
     }
 
-    void Browse()
+    void Browse() =>
+        _browsing = NativeVehiclePackageDialog.SelectAsync(ReadPath());
+
+    void CompleteBrowse()
     {
-        string initial = ReadPath();
-        if (NativeVehiclePackageDialog.TrySelect(
-                initial, out string selected))
+        if (_browsing is not { IsCompleted: true }) return;
+        try
         {
-            SetPath(selected);
-            _status = "";
+            string? selected = _browsing.GetAwaiter().GetResult();
+            if (!string.IsNullOrEmpty(selected))
+            {
+                SetPath(selected);
+                _status = "";
+            }
         }
+        catch (Exception ex)
+        {
+            _statusIsError = true;
+            _status = ex.Message;
+        }
+        _browsing = null;
     }
 
     void Apply()
@@ -275,50 +290,11 @@ internal sealed class GuestVehiclePackagePanel : IPanel
 
 internal static class NativeVehiclePackageDialog
 {
-    const int OfnPathMustExist = 0x00000800;
-    const int OfnFileMustExist = 0x00001000;
-    const int OfnNoChangeDir = 0x00000008;
-
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    struct OpenFileName
-    {
-        public int StructSize;
-        public IntPtr Owner;
-        public IntPtr Instance;
-        public string Filter;
-        public string? CustomFilter;
-        public int MaxCustomFilter;
-        public int FilterIndex;
-        public StringBuilder File;
-        public int MaxFile;
-        public string? FileTitle;
-        public int MaxFileTitle;
-        public string? InitialDir;
-        public string? Title;
-        public int Flags;
-        public short FileOffset;
-        public short FileExtension;
-        public string? DefaultExtension;
-        public IntPtr CustomData;
-        public IntPtr Hook;
-        public string? TemplateName;
-        public IntPtr Reserved;
-        public int Reserved2;
-        public int FlagsEx;
-    }
-
-    [DllImport(
-        "comdlg32.dll",
-        CharSet = CharSet.Unicode,
-        SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    static extern bool GetOpenFileName(ref OpenFileName value);
-
-    [DllImport("user32.dll")]
-    static extern IntPtr GetActiveWindow();
-
-    public static bool TrySelect(
-        string initialPath, out string selectedDirectory)
+    /// <summary>
+    /// Completes with the selected package's directory, or null on cancel.
+    /// The game loop keeps pumping messages, so its window owns the dialog.
+    /// </summary>
+    public static async Task<string?> SelectAsync(string initialPath)
     {
         string? initialDirectory = null;
         if (Directory.Exists(initialPath))
@@ -326,31 +302,12 @@ internal static class NativeVehiclePackageDialog
         else if (File.Exists(initialPath))
             initialDirectory = Path.GetDirectoryName(initialPath);
 
-        var file = new StringBuilder(2048);
-        var value = new OpenFileName
-        {
-            StructSize = Marshal.SizeOf<OpenFileName>(),
-            Owner = GetActiveWindow(),
-            Filter =
-                "V8:2 vehicle package (VEHICLES.V8R;CUSTOM.EXP)\0" +
-                "VEHICLES.V8R;CUSTOM.EXP\0All files\0*.*\0\0",
-            FilterIndex = 1,
-            File = file,
-            MaxFile = file.Capacity,
-            InitialDir = initialDirectory,
-            Title = "Choose a V8:2 guest vehicle package",
-            Flags =
-                OfnPathMustExist | OfnFileMustExist | OfnNoChangeDir,
-        };
-
-        if (!GetOpenFileName(ref value))
-        {
-            selectedDirectory = "";
-            return false;
-        }
-
-        selectedDirectory =
-            Path.GetDirectoryName(file.ToString()) ?? "";
-        return selectedDirectory.Length != 0;
+        string? file = await NativeFileDialog.OpenAsync(
+            "Choose a V8:2 guest vehicle package",
+            "V8:2 vehicle package (VEHICLES.V8R;CUSTOM.EXP)\0" +
+            "VEHICLES.V8R;CUSTOM.EXP\0All files\0*.*\0\0",
+            initialDirectory,
+            NativeFileDialog.ActiveWindow());
+        return file == null ? null : Path.GetDirectoryName(file);
     }
 }

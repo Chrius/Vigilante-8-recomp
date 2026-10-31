@@ -317,14 +317,9 @@ public static class V82ArenaRegistry
             Runtime.ExecutableDirectory, "ARENAS.V8R");
         if (File.Exists(rootRegistry))
             paths.Add(rootRegistry);
-        string mods = Runtime.ModsDirectory;
-        if (Directory.Exists(mods))
-        {
-            paths.AddRange(Directory.EnumerateDirectories(mods)
-                .Select(directory => Path.Combine(directory, "ARENAS.V8R"))
-                .Where(File.Exists)
-                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase));
-        }
+        paths.AddRange(Modding.ModCatalog.EnabledDirectories(Runtime.ModsDirectory)
+            .Select(directory => Path.Combine(directory, "ARENAS.V8R"))
+            .Where(File.Exists));
 
         var stableIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (string path in paths)

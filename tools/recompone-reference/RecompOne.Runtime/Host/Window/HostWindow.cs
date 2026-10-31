@@ -134,6 +134,11 @@ internal static class HostWindow
 
     static bool _layoutPending = true;
     static bool _closed;
+    // Fullscreen hides the developer menu bar. F1 there reveals it for the
+    // rest of that fullscreen stretch only, leaving the saved windowed
+    // HideTopBar choice alone.
+    static bool _topBarInFullscreen;
+    static volatile bool _quitRequested;
     static DiscPickerPopup? _discPicker;
 
     public static void Initialize(string title)
@@ -188,6 +193,15 @@ internal static class HostWindow
             try { _window.DoRender(); } catch { }
             if (_windowVisible)
             {
+                // Silk's GLFW backend ignores WindowState.Fullscreen in the
+                // creation options: the window comes up Normal with its frame,
+                // so a saved Fullscreen=True never took effect and the first
+                // F11 only flipped the setting off. Setting the state on the
+                // created window works, and doing it while still hidden avoids
+                // flashing the framed window first.
+                if (ConfigManager.View.Fullscreen &&
+                    _window.WindowState != WindowState.Fullscreen)
+                    _window.WindowState = WindowState.Fullscreen;
                 _window.IsVisible = true;
                 // The window is created hidden so the first frame can be
                 // cleared before it appears, and a maximized state set at
@@ -271,12 +285,17 @@ internal static class HostWindow
         catch (Exception e) {
             Console.WriteLine(e.Message);
         }
-        if (_window.IsClosing) { Runtime.Shutdown(); Environment.Exit(0); }
+        if (_window.IsClosing || _quitRequested) Quit();
         InputManager.Poll();
         if (InputManager.ConsumeTopBarToggle())
         {
-            ConfigManager.View.HideTopBar = !ConfigManager.View.HideTopBar;
-            ConfigManager.SaveView(PanelManager.Panels);
+            if (ConfigManager.View.Fullscreen)
+                _topBarInFullscreen = !_topBarInFullscreen;
+            else
+            {
+                ConfigManager.View.HideTopBar = !ConfigManager.View.HideTopBar;
+                ConfigManager.SaveView(PanelManager.Panels);
+            }
         }
         if (InputManager.ConsumeFullscreenToggle())
         {
@@ -330,8 +349,23 @@ internal static class HostWindow
     {
         if (_headless || _window == null) return;
         try { _window.DoEvents(); } catch { }
-        if (_window.IsClosing) { Runtime.Shutdown(); Environment.Exit(0); }
+        if (_window.IsClosing || _quitRequested) Quit();
         _window.DoRender();
+    }
+
+    /// <summary>
+    /// Quits at the start of the next frame. UI handlers run inside
+    /// DoRender, where tearing down the window and GL context is unsafe.
+    /// </summary>
+    public static void RequestQuit() => _quitRequested = true;
+
+    static void Quit()
+    {
+        // The close button saves through the Closing event; a requested quit
+        // has no such event, so save here. OnClosing runs only once.
+        OnClosing();
+        Runtime.Shutdown();
+        Environment.Exit(0);
     }
 
     public static void Shutdown()
@@ -344,6 +378,7 @@ internal static class HostWindow
     public static void SetFullscreen(bool on)
     {
         if (_window == null) return;
+        _topBarInFullscreen = false;
         _window.WindowState = on ? WindowState.Fullscreen : WindowState.Normal;
         if (!on)
         {
@@ -677,7 +712,9 @@ internal static class HostWindow
             if (_ramReady) FlushRamTexture(gl);
         }
 
-        if (!ConfigManager.View.HideTopBar)
+        if (ConfigManager.View.Fullscreen
+                ? _topBarInFullscreen
+                : !ConfigManager.View.HideTopBar)
             MainMenuBar.Draw();
 
         DrawDockspace();

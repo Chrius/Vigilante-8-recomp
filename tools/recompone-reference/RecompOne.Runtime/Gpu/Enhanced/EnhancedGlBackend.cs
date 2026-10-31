@@ -1460,6 +1460,11 @@ public sealed class EnhancedGlBackend : Hle.IGpuBackend
         _vram.Init();
 
         _uniformState.Clear(); _depthEnabled = _depthWrite = null; _depthFunction = null;
+        // Shader link failures are driver-specific (NVIDIA's attribute and
+        // varying limits differ from other vendors); name the driver beside them.
+        Console.WriteLine(
+            $"[GlBackend] driver={_gl.GetStringS(StringName.Vendor)} | " +
+            $"{_gl.GetStringS(StringName.Renderer)} | {_gl.GetStringS(StringName.Version)}");
         _progPrim = GlShaders.Build(_gl, GlShaders.PrimVs, GlShaders.PrimFs, "prim");
         _progPresent = GlShaders.Build(_gl, GlShaders.FullscreenVs, GlShaders.PresentFs, "present");
         _progPresent24 = GlShaders.Build(_gl, GlShaders.FullscreenVs, GlShaders.Present24Fs, "present24");
@@ -1541,26 +1546,23 @@ public sealed class EnhancedGlBackend : Hle.IGpuBackend
         _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
         _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(MaxVerts * sizeof(GlVertex)), null, BufferUsageARB.DynamicDraw);
         uint stride = (uint)sizeof(GlVertex);
+        // NVIDIA exposes only 16 vertex attributes, so runs of adjacent
+        // same-type fields share one attribute (see PrimVs). The offsets are
+        // GlVertex's sequential layout; the struct itself is unchanged.
         _gl.EnableVertexAttribArray(0); _gl.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, stride, (void*)0);
-        _gl.EnableVertexAttribArray(1); _gl.VertexAttribIPointer(1, 1, VertexAttribIType.UnsignedInt, stride, (void*)8);
-        _gl.EnableVertexAttribArray(2); _gl.VertexAttribIPointer(2, 1, VertexAttribIType.Int, stride, (void*)12);
-        _gl.EnableVertexAttribArray(3); _gl.VertexAttribIPointer(3, 1, VertexAttribIType.Int, stride, (void*)16);
-        _gl.EnableVertexAttribArray(4); _gl.VertexAttribPointer(4, 2, VertexAttribPointerType.Float, false, stride, (void*)20);
-        _gl.EnableVertexAttribArray(5); _gl.VertexAttribPointer(5, 1, VertexAttribPointerType.Float, false, stride, (void*)28);
-        _gl.EnableVertexAttribArray(6); _gl.VertexAttribPointer(6, 3, VertexAttribPointerType.Float, false, stride, (void*)40);
-        _gl.EnableVertexAttribArray(7); _gl.VertexAttribPointer(7, 4, VertexAttribPointerType.Float, false, stride, (void*)52);
-        _gl.EnableVertexAttribArray(8); _gl.VertexAttribPointer(8, 1, VertexAttribPointerType.Float, false, stride, (void*)32);
-        _gl.EnableVertexAttribArray(9); _gl.VertexAttribPointer(9, 1, VertexAttribPointerType.Float, false, stride, (void*)36);
-        _gl.EnableVertexAttribArray(10); _gl.VertexAttribPointer(10, 3, VertexAttribPointerType.Float, false, stride, (void*)68);
-        _gl.EnableVertexAttribArray(11); _gl.VertexAttribPointer(11, 3, VertexAttribPointerType.Float, false, stride, (void*)80);
-        _gl.EnableVertexAttribArray(12); _gl.VertexAttribPointer(12, 1, VertexAttribPointerType.Float, false, stride, (void*)92);
-        _gl.EnableVertexAttribArray(13); _gl.VertexAttribIPointer(13, 1, VertexAttribIType.Int, stride, (void*)96);
-        _gl.EnableVertexAttribArray(14); _gl.VertexAttribPointer(14, 4, VertexAttribPointerType.Float, false, stride, (void*)100);
-        _gl.EnableVertexAttribArray(15); _gl.VertexAttribPointer(15, 3, VertexAttribPointerType.Float, false, stride, (void*)116);
-        _gl.EnableVertexAttribArray(16); _gl.VertexAttribPointer(16, 3, VertexAttribPointerType.Float, false, stride, (void*)128);
-        _gl.EnableVertexAttribArray(17); _gl.VertexAttribIPointer(17, 1, VertexAttribIType.Int, stride, (void*)140);
-        _gl.EnableVertexAttribArray(18); _gl.VertexAttribIPointer(18, 1, VertexAttribIType.UnsignedInt, stride, (void*)144);
-        _gl.EnableVertexAttribArray(19); _gl.VertexAttribPointer(19, 4, VertexAttribPointerType.Float, false, stride, (void*)148);
+        _gl.EnableVertexAttribArray(1); _gl.VertexAttribIPointer(1, 3, VertexAttribIType.Int, stride, (void*)8);
+        _gl.EnableVertexAttribArray(2); _gl.VertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, stride, (void*)20);
+        _gl.EnableVertexAttribArray(3); _gl.VertexAttribPointer(3, 4, VertexAttribPointerType.Float, false, stride, (void*)36);
+        _gl.EnableVertexAttribArray(4); _gl.VertexAttribPointer(4, 4, VertexAttribPointerType.Float, false, stride, (void*)52);
+        _gl.EnableVertexAttribArray(5); _gl.VertexAttribPointer(5, 3, VertexAttribPointerType.Float, false, stride, (void*)68);
+        _gl.EnableVertexAttribArray(6); _gl.VertexAttribPointer(6, 3, VertexAttribPointerType.Float, false, stride, (void*)80);
+        _gl.EnableVertexAttribArray(7); _gl.VertexAttribPointer(7, 1, VertexAttribPointerType.Float, false, stride, (void*)92);
+        _gl.EnableVertexAttribArray(8); _gl.VertexAttribIPointer(8, 1, VertexAttribIType.Int, stride, (void*)96);
+        _gl.EnableVertexAttribArray(9); _gl.VertexAttribPointer(9, 4, VertexAttribPointerType.Float, false, stride, (void*)100);
+        _gl.EnableVertexAttribArray(10); _gl.VertexAttribPointer(10, 3, VertexAttribPointerType.Float, false, stride, (void*)116);
+        _gl.EnableVertexAttribArray(11); _gl.VertexAttribPointer(11, 3, VertexAttribPointerType.Float, false, stride, (void*)128);
+        _gl.EnableVertexAttribArray(12); _gl.VertexAttribIPointer(12, 2, VertexAttribIType.Int, stride, (void*)140);
+        _gl.EnableVertexAttribArray(13); _gl.VertexAttribPointer(13, 4, VertexAttribPointerType.Float, false, stride, (void*)148);
 
         // fullscreen quad for present, real vbo since gl_VertexID without arrays does not draw on mesa for some reason?? or i did it wrong?
         _presentVao = _gl.GenVertexArray();
